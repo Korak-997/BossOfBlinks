@@ -71,10 +71,16 @@ BossOfBlinks/
 │   │   └── font.h      # Custom font definition
 │   └── platformio.ini  # PlatformIO configuration
 │
-├── server/             # Node.js server
-│   ├── server.js       # Express server
-│   ├── package.json    # Dependencies
-│   └── public/         # Static assets (if needed)
+|--server/
+|
+├── public/
+│   ├── css/
+│   │   └── styles.css
+│   ├── js/
+│   │   └── main.js
+│   └── index.html
+├── server.js
+└── package.json
 │
 ├── docs/               # Documentation
 │   ├── images/         # Photos and diagrams

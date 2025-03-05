@@ -1,12 +1,22 @@
 const express = require("express");
+const path = require("path");
 const app = express();
 const port = 3000;
 
-// Global variable to store the current message
+// Global variables to store the app state
 let currentMessage = "Hello World";
+let messageTemplates = [
+  "Hello World!",
+  "Welcome! 👋",
+  "Meeting in progress... 🔴",
+  "Be right back! ⏱️",
+  "Do not disturb! 🔕",
+  "Happy Birthday! 🎂",
+];
 
-// Middleware to parse JSON requests
+// Middleware
 app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
 
 // Enable CORS for all routes
 app.use((req, res, next) => {
@@ -18,13 +28,34 @@ app.use((req, res, next) => {
   next();
 });
 
-// Endpoint to get the current message (for ESP8266)
+// API Routes
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, "public")));
+
+// This ensures that the index.html file is served when accessing the root URL
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "/public", "index.html"));
+});
+
+// Get current message (for ESP8266)
 app.get("/api/current-message", (req, res) => {
   console.log(`GET /api/current-message - Returning: "${currentMessage}"`);
   res.json({ message: currentMessage });
 });
 
-// Endpoint to set a new message
+// Get device status
+app.get("/api/status", (req, res) => {
+  console.log("GET /api/status");
+  res.json({
+    connected: true,
+    wifiName: "Your WiFi",
+    ipAddress: "192.168.1.123",
+    currentMessage: currentMessage,
+    lastSeen: new Date().toISOString(),
+  });
+});
+
+// Set a new message
 app.post("/api/set-message", (req, res) => {
   const { message } = req.body;
   console.log(`POST /api/set-message - Received: "${message}"`);
@@ -39,61 +70,20 @@ app.post("/api/set-message", (req, res) => {
   res.json({ success: true, message });
 });
 
-// Simple test endpoint
-app.get("/api/test", (req, res) => {
-  console.log("GET /api/test");
-  res.json({ status: "ok", message: "API is working" });
+// Get templates
+app.get("/api/templates", (req, res) => {
+  res.json(messageTemplates);
 });
 
-// Simple HTML interface
-app.get("/", (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>ESP8266 Control</title>
-      <style>
-        body { font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; }
-        .container { background: #f5f5f5; padding: 20px; border-radius: 8px; }
-        input, button { padding: 8px; margin: 10px 0; }
-        input { width: 80%; }
-        button { background: #0066ff; color: white; border: none; cursor: pointer; }
-        .current { font-family: monospace; background: #333; color: #0f0; padding: 10px; border-radius: 4px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h1>ESP8266 LED Matrix Control</h1>
-        <p>Current message: <span class="current" id="currentMessage">${currentMessage}</span></p>
-        <div>
-          <input type="text" id="messageInput" placeholder="Enter a message">
-          <button onclick="sendMessage()">Send to Display</button>
-        </div>
-      </div>
+// Add a template
+app.post("/api/templates", (req, res) => {
+  const { template } = req.body;
+  if (!template || messageTemplates.includes(template)) {
+    return res.status(400).json({ error: "Invalid or duplicate template" });
+  }
 
-      <script>
-        function sendMessage() {
-          const message = document.getElementById('messageInput').value;
-          if (!message) return;
-
-          fetch('/api/set-message', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message })
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              document.getElementById('currentMessage').innerText = message;
-              document.getElementById('messageInput').value = '';
-            }
-          })
-          .catch(error => console.error('Error:', error));
-        }
-      </script>
-    </body>
-    </html>
-  `);
+  messageTemplates.push(template);
+  res.json({ success: true, templates: messageTemplates });
 });
 
 // Start the server

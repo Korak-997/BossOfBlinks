@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>BossOfBlinks - LED Matrix Control</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="css/styles.css"
+    />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <div class="header-content">
+          <div class="logo">
+            <i class="fas fa-microchip"></i>
+            BossOfBlinks
+          </div>
+          <nav>
+            <a href="#"><i class="fas fa-cog"></i>Setup</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <div class="container">
+      <div class="grid">
+        <!-- Message Control Panel -->
+        <div class="card">
+          <h2 class="card-title">
+            <i class="fas fa-comment-alt"></i>
+            Message Control
+          </h2>
+
+          <div class="message-preview">
+            <div
+              class="message-preview-content"
+              id="preview"
+            >
+              Enter your message
+            </div>
+          </div>
+
+          <form id="messageForm">
+            <input
+              type="text"
+              id="messageInput"
+              placeholder="Enter your message"
+            />
+            <button type="submit">
+              <i class="fas fa-paper-plane"></i>
+              Send to Display
+            </button>
+          </form>
+
+          <div class="emoji-picker">
+            <h3 class="emoji-picker-title">Quick Emojis</h3>
+            <div class="emoji-grid">
+              <button
+                class="emoji-btn"
+                data-emoji="😀"
+              >
+                😀
+              </button>
+              <button
+                class="emoji-btn"
+                data-emoji="👋"
+              >
+                👋
+              </button>
+              <button
+                class="emoji-btn"
+                data-emoji="❤️"
+              >
+                ❤️
+              </button>
+              <button
+                class="emoji-btn"
+                data-emoji="👍"
+              >
+                👍
+              </button>
+              <button
+                class="emoji-btn"
+                data-emoji="🚀"
+              >
+                🚀
+              </button>
+              <button
+                class="emoji-btn"
+                data-emoji="🎉"
+              >
+                🎉
+              </button>
+              <button
+                class="emoji-btn"
+                data-emoji="⭐"
+              >
+                ⭐
+              </button>
+              <button
+                class="emoji-btn"
+                data-emoji="🔥"
+              >
+                🔥
+              </button>
+              <button
+                class="emoji-btn"
+                data-emoji="🎵"
+              >
+                🎵
+              </button>
+              <button
+                class="emoji-btn"
+                data-emoji="📱"
+              >
+                📱
+              </button>
+              <button
+                class="emoji-btn"
+                data-emoji="💻"
+              >
+                💻
+              </button>
+              <button
+                class="emoji-btn"
+                data-emoji="🔴"
+              >
+                🔴
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status Panel -->
+        <div class="card">
+          <h2 class="card-title">
+            <i class="fas fa-chart-line"></i>
+            Display Status
+          </h2>
+
+          <div class="status-info">
+            <div class="status-item">
+              <span class="status-label">Connection:</span>
+              <span
+                class="status-value connected"
+                id="connectionStatus"
+              >
+                <i class="fas fa-check-circle"></i>
+                Connected
+              </span>
+            </div>
+
+            <div class="status-item">
+              <span class="status-label">WiFi Network:</span>
+              <span
+                class="status-value"
+                id="wifiName"
+                >Your WiFi</span
+              >
+            </div>
+
+            <div class="status-item">
+              <span class="status-label">IP Address:</span>
+              <span
+                class="status-value monospace"
+                id="ipAddress"
+                >192.168.1.123</span
+              >
+            </div>
+
+            <div class="status-item">
+              <span class="status-label">Current Message:</span>
+              <span
+                class="status-value monospace"
+                id="currentDisplayMessage"
+              ></span>
+            </div>
+
+            <div class="status-item">
+              <span class="status-label">Last Seen:</span>
+              <span
+                class="status-value"
+                id="lastSeen"
+                >Just now</span
+              >
+            </div>
+          </div>
+
+          <button
+            id="refreshStatusBtn"
+            class="refresh-btn"
+            style="margin-top: 1rem; background-color: var(--secondary)"
+          >
+            <i class="fas fa-sync-alt"></i>
+            Refresh Status
+          </button>
+        </div>
+      </div>
+
+      <!-- Message Templates -->
+      <div class="card templates-container">
+        <h2 class="card-title">
+          <i class="fas fa-bookmark"></i>
+          Message Templates
+        </h2>
+
+        <div
+          class="templates-grid"
+          id="templatesGrid"
+        >
+          <!-- Templates will be loaded here dynamically -->
+        </div>
+
+        <button
+          id="addTemplateBtn"
+          class="add-template-btn"
+        >
+          <i class="fas fa-plus-circle"></i>
+          Save Current Message as Template
+        </button>
+      </div>
+    </div>
+
+    <div
+      class="notification"
+      id="notification"
+    >
+      <i class="fas fa-check-circle"></i>
+      <span id="notificationText">Message sent successfully!</span>
+    </div>
+
+    <footer>
+      <p>
+        BossOfBlinks &copy; 2025 |
+        <a
+          href="https://github.com/yourusername/BossOfBlinks"
+          target="_blank"
+          >GitHub</a
+        >
+      </p>
+    </footer>
+
+    <script src="js/main.js"></script>
+  </body>
+</html>
