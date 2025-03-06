@@ -14,6 +14,13 @@ let messageTemplates = [
   "Happy Birthday! 🎂",
 ];
 
+// Display settings
+let displaySettings = {
+  brightness: 5, // 0-15 brightness level
+  speed: 40, // Scroll speed (lower is faster)
+  fontStyle: "default", // For future font options
+};
+
 // Device status tracking
 let deviceStatus = {
   connected: false,
@@ -21,6 +28,7 @@ let deviceStatus = {
   wifiName: "Unknown",
   ipAddress: "Unknown",
   deviceIP: "Unknown",
+  signalStrength: 0,
 };
 
 // Connection timeout interval (in milliseconds)
@@ -63,11 +71,6 @@ app.use((req, res, next) => {
     // Get device IP address from request
     deviceStatus.deviceIP = req.ip.replace("::ffff:", ""); // Strip IPv6 prefix if present
 
-    // If WiFi SSID is sent in the request, update it
-    if (req.query.ssid) {
-      deviceStatus.wifiName = req.query.ssid;
-    }
-
     console.log(`ESP8266 device connected from ${deviceStatus.deviceIP}`);
   }
 
@@ -86,21 +89,29 @@ app.get("/", (req, res) => {
 // Get current message (for ESP8266)
 app.get("/api/current-message", (req, res) => {
   console.log(`GET /api/current-message - Returning: "${currentMessage}"`);
-  res.json({ message: currentMessage });
+
+  // Also return display settings for the device
+  res.json({
+    message: currentMessage,
+    brightness: displaySettings.brightness,
+    speed: displaySettings.speed,
+    fontStyle: displaySettings.fontStyle,
+  });
 });
 
 // Endpoint for ESP8266 to report its status
 app.post("/api/device-status", (req, res) => {
-  const { ssid, ip } = req.body;
+  const { ssid, ip, rssi } = req.body;
 
   if (ssid) deviceStatus.wifiName = ssid;
   if (ip) deviceStatus.deviceIP = ip;
+  if (rssi) deviceStatus.signalStrength = rssi;
 
   deviceStatus.lastSeen = Date.now();
   deviceStatus.connected = true;
 
   console.log(
-    `Device status updated - SSID: ${deviceStatus.wifiName}, IP: ${deviceStatus.deviceIP}`
+    `Device status updated - SSID: ${deviceStatus.wifiName}, IP: ${deviceStatus.deviceIP}, Signal: ${deviceStatus.signalStrength}dBm`
   );
   res.json({ success: true });
 });
@@ -117,6 +128,8 @@ app.get("/api/status", (req, res) => {
     wifiName: deviceStatus.wifiName,
     ipAddress: deviceStatus.deviceIP,
     currentMessage: currentMessage,
+    signalStrength: deviceStatus.signalStrength,
+    displaySettings: displaySettings,
     lastSeen: deviceStatus.lastSeen
       ? new Date(deviceStatus.lastSeen).toISOString()
       : null,
@@ -136,6 +149,26 @@ app.post("/api/set-message", (req, res) => {
   currentMessage = message;
   console.log(`Message updated to: "${currentMessage}"`);
   res.json({ success: true, message });
+});
+
+// Update display settings
+app.post("/api/display-settings", (req, res) => {
+  const { brightness, speed, fontStyle } = req.body;
+
+  if (brightness !== undefined) {
+    displaySettings.brightness = Math.min(Math.max(brightness, 0), 15); // Ensure within 0-15 range
+  }
+
+  if (speed !== undefined) {
+    displaySettings.speed = Math.min(Math.max(speed, 10), 100); // Ensure within range
+  }
+
+  if (fontStyle !== undefined) {
+    displaySettings.fontStyle = fontStyle;
+  }
+
+  console.log("Display settings updated:", displaySettings);
+  res.json({ success: true, settings: displaySettings });
 });
 
 // Get templates

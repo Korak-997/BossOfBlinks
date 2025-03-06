@@ -15,14 +15,218 @@ const ipAddress = document.getElementById("ipAddress");
 const currentDisplayMessage = document.getElementById("currentDisplayMessage");
 const lastSeen = document.getElementById("lastSeen");
 
+// Display settings elements (we'll add these to the HTML)
+let brightnessSlider, speedSlider;
+
 // Initialize the page
 document.addEventListener("DOMContentLoaded", () => {
   loadTemplates();
   updateDeviceStatus();
+  setupDisplayControls();
 
   // Set up polling for device status every 10 seconds
   setInterval(updateDeviceStatus, 10000);
 });
+
+// Setup display controls
+function setupDisplayControls() {
+  // Check if the display settings section exists
+  const settingsContainer = document.getElementById("displaySettingsContainer");
+  if (!settingsContainer) {
+    console.log("Creating display settings controls");
+    createDisplaySettingsControls();
+  } else {
+    // Get references to existing controls
+    brightnessSlider = document.getElementById("brightnessSlider");
+    speedSlider = document.getElementById("speedSlider");
+
+    // Add event listeners
+    if (brightnessSlider) {
+      brightnessSlider.addEventListener("change", updateDisplaySettings);
+    }
+    if (speedSlider) {
+      speedSlider.addEventListener("change", updateDisplaySettings);
+    }
+  }
+}
+
+// Create display settings controls if they don't exist
+function createDisplaySettingsControls() {
+  // Create the settings card and add it to the grid
+  const gridContainer = document.querySelector(".grid");
+  if (!gridContainer) return;
+
+  const settingsCard = document.createElement("div");
+  settingsCard.className = "card";
+  settingsCard.id = "displaySettingsContainer";
+  settingsCard.innerHTML = `
+    <h2 class="card-title">
+      <i class="fas fa-sliders-h"></i>
+      Display Settings
+    </h2>
+    <div class="settings-content">
+      <div class="setting-item">
+        <label for="brightnessSlider">Brightness</label>
+        <div class="slider-container">
+          <i class="fas fa-sun fa-sm"></i>
+          <input type="range" id="brightnessSlider" min="0" max="15" value="5" class="slider">
+          <i class="fas fa-sun fa-lg"></i>
+        </div>
+        <span id="brightnessValue">5</span>
+      </div>
+      <div class="setting-item">
+        <label for="speedSlider">Scroll Speed</label>
+        <div class="slider-container">
+          <i class="fas fa-running fa-sm"></i>
+          <input type="range" id="speedSlider" min="10" max="100" value="40" class="slider">
+          <i class="fas fa-running fa-lg"></i>
+        </div>
+        <span id="speedValue">40</span>
+      </div>
+      <button id="applySettingsBtn" class="apply-btn">
+        <i class="fas fa-check-circle"></i>
+        Apply Settings
+      </button>
+    </div>
+  `;
+
+  // Insert after first or second card
+  if (gridContainer.children.length > 1) {
+    gridContainer.insertBefore(settingsCard, gridContainer.children[2]);
+  } else {
+    gridContainer.appendChild(settingsCard);
+  }
+
+  // Get references to the new elements
+  brightnessSlider = document.getElementById("brightnessSlider");
+  speedSlider = document.getElementById("speedSlider");
+  const brightnessValue = document.getElementById("brightnessValue");
+  const speedValue = document.getElementById("speedValue");
+  const applySettingsBtn = document.getElementById("applySettingsBtn");
+
+  // Add event listeners for sliders
+  brightnessSlider.addEventListener("input", () => {
+    brightnessValue.textContent = brightnessSlider.value;
+  });
+
+  speedSlider.addEventListener("input", () => {
+    speedValue.textContent = speedSlider.value;
+  });
+
+  // Apply settings button
+  applySettingsBtn.addEventListener("click", updateDisplaySettings);
+
+  // Add CSS for the new controls
+  addDisplaySettingsStyles();
+}
+
+// Add CSS for display settings
+function addDisplaySettingsStyles() {
+  const styleEl = document.createElement("style");
+  styleEl.textContent = `
+    .setting-item {
+      margin-bottom: 1.5rem;
+    }
+
+    .setting-item label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: var(--gray);
+    }
+
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .slider {
+      flex: 1;
+      height: 6px;
+      background: var(--gray-dark);
+      border-radius: 3px;
+      appearance: none;
+      outline: none;
+    }
+
+    .slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: var(--primary);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .slider::-webkit-slider-thumb:hover {
+      background: var(--primary-light);
+      transform: scale(1.2);
+      box-shadow: 0 0 10px var(--primary);
+    }
+
+    .apply-btn {
+      width: 100%;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.9rem 1.25rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      transition: all 0.2s;
+      margin-top: 1rem;
+      box-shadow: 0 4px 8px rgba(0, 179, 255, 0.2);
+    }
+
+    .apply-btn:hover {
+      background-color: var(--primary-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0, 179, 255, 0.3);
+    }
+
+    .apply-btn:active {
+      transform: translateY(1px);
+    }
+  `;
+
+  document.head.appendChild(styleEl);
+}
+
+// Update display settings
+async function updateDisplaySettings() {
+  try {
+    const brightness = parseInt(brightnessSlider.value);
+    const speed = parseInt(speedSlider.value);
+
+    const response = await fetch("/api/display-settings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        brightness,
+        speed,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      showNotification("Display settings updated!");
+    } else {
+      showNotification("Failed to update settings", "error");
+    }
+  } catch (error) {
+    console.error("Error updating display settings:", error);
+    showNotification("Network error, please try again", "error");
+  }
+}
 
 // Preview message as user types
 messageInput.addEventListener("input", () => {
@@ -185,6 +389,17 @@ async function updateDeviceStatus() {
       }
     } else {
       lastSeen.textContent = "Never";
+    }
+
+    // Update display settings if available
+    if (status.displaySettings && brightnessSlider && speedSlider) {
+      brightnessSlider.value = status.displaySettings.brightness;
+      document.getElementById("brightnessValue").textContent =
+        status.displaySettings.brightness;
+
+      speedSlider.value = status.displaySettings.speed;
+      document.getElementById("speedValue").textContent =
+        status.displaySettings.speed;
     }
 
     return status;
