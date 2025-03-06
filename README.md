@@ -2,7 +2,7 @@
 
 > Web-controlled LED matrix display using ESP8266 and Node.js
 
-![BossOfBlinks Logo](docs/images/logo.png)
+![BossOfBlinks Logo](docs/images/logo.jpg)
 
 BossOfBlinks is an open-source project that allows you to control an LED matrix display wirelessly through a web interface. Using a Wemos D1 Mini (ESP8266) connected to a MAX72XX LED matrix, you can display custom text and emojis from anywhere on your local network.
 
