@@ -41,28 +41,35 @@ ServerConfig serverConfig;
 String currentMessage = "Hello World";
 bool isConfigured = false;
 unsigned long lastCheckTime = 0;
-const unsigned long checkInterval = 5000; // Check every 5 seconds
+unsigned long lastStatusUpdateTime = 0;
+const unsigned long checkInterval = 5000;         // Check every 5 seconds
+const unsigned long statusUpdateInterval = 30000; // Status update every 30 seconds
 
 // Function prototypes
 void connectToWifi();
 void parseCommand(String command);
 void addWifiNetwork(const char* ssid, const char* password, bool remember);
 void checkForNewMessages();
+void sendStatusUpdate();
 bool saveConfig();
 bool loadConfig();
 void waitForSerialConfig();
 void checkSerialCommands();
+String replaceEmojis(String message);
 
 // Setup function
 void setup() {
   // Initialize serial communication
   Serial.begin(115200);
-  Serial.println("\nLED Matrix Controller Starting");
+  Serial.println("\nBossOfBlinks Controller Starting");
 
   // Initialize the LED display
   P.begin();
   P.setFont(fontSubs);
-  P.setIntensity(3); // Medium brightness (0-15)
+  P.setIntensity(5);  // Increased brightness (0-15)
+  P.setSpeed(40);     // Faster scrolling for better readability
+  P.setPause(1000);   // Pause at the end of message
+  P.setTextAlignment(PA_CENTER);
   P.displayClear();
 
   // Display a starting message
@@ -92,7 +99,7 @@ void setup() {
 void loop() {
   // Update the display with current message on animation completion
   if (P.displayAnimate()) {
-    P.displayText(currentMessage.c_str(), PA_CENTER, 50, 1000, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
+    P.displayText(currentMessage.c_str(), PA_CENTER, 40, 1000, PA_SCROLL_LEFT, PA_SCROLL_LEFT);
     P.displayReset();
   }
 
@@ -101,9 +108,18 @@ void loop() {
 
   // Check for new messages if connected to WiFi
   if (WiFi.status() == WL_CONNECTED) {
-    if (millis() - lastCheckTime > checkInterval) {
+    unsigned long currentTime = millis();
+
+    // Check for new messages periodically
+    if (currentTime - lastCheckTime > checkInterval) {
       checkForNewMessages();
-      lastCheckTime = millis();
+      lastCheckTime = currentTime;
+    }
+
+    // Send status updates periodically
+    if (currentTime - lastStatusUpdateTime > statusUpdateInterval) {
+      sendStatusUpdate();
+      lastStatusUpdateTime = currentTime;
     }
   } else {
     // If WiFi is disconnected, try to reconnect occasionally
@@ -112,6 +128,26 @@ void loop() {
       lastCheckTime = millis();
     }
   }
+}
+
+// Replace emoji Unicode characters with displayable alternatives
+String replaceEmojis(String message) {
+  // Common emoji replacements using characters from your custom font
+  message.replace("😀", ":)");    // Use happy smiley from fontSubs
+  message.replace("👋", "~");     // Wave as tilde
+  message.replace("❤️", "\x03");  // Heart character (index 3 in your font)
+  message.replace("👍", "(Y)");   // Thumbs up
+  message.replace("🚀", "/^\\");  // Rocket representation
+  message.replace("🎉", "!!");    // Party popper
+  message.replace("⭐", "*");     // Star
+  message.replace("🔥", "><>");   // Fire representation
+  message.replace("🎵", "\x0E");  // Music note (index 14 in your font)
+  message.replace("📱", "[o]");   // Phone representation
+  message.replace("💻", "[_]");   // Computer representation
+  message.replace("🔴", "\x07");  // Bullet point (index 7 in your font)
+  message.replace("🟢", "()");    // Green circle
+
+  return message;
 }
 
 // Wait for serial configuration
@@ -166,9 +202,23 @@ void parseCommand(String command) {
     else if (doc.containsKey("message")) {
       // Set a new message
       String message = doc["message"].as<String>();
-      currentMessage = message;
-      P.print(message);
+      currentMessage = replaceEmojis(message);  // Process emojis
+      P.print(currentMessage);
       Serial.println("New message set: " + message);
+    }
+    else if (doc.containsKey("brightness")) {
+      // Set display brightness
+      int brightness = doc["brightness"].as<int>();
+      brightness = constrain(brightness, 0, 15);  // Ensure value is within range
+      P.setIntensity(brightness);
+      Serial.println("Brightness set to: " + String(brightness));
+    }
+    else if (doc.containsKey("speed")) {
+      // Set scroll speed
+      int speed = doc["speed"].as<int>();
+      speed = constrain(speed, 10, 100);  // Ensure value is within range
+      P.setSpeed(speed);
+      Serial.println("Speed set to: " + String(speed));
     }
     else if (doc.containsKey("restart")) {
       // Restart the device
@@ -242,6 +292,9 @@ void connectToWifi() {
 
         P.print("Connected");
         delay(1000);
+
+        // Send initial status update
+        sendStatusUpdate();
         return;
       }
 
@@ -263,6 +316,39 @@ void checkSerialCommands() {
   }
 }
 
+// Send status update to server
+void sendStatusUpdate() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  WiFiClient client;
+
+  String url = "http://" + String(serverConfig.serverIP) + ":" +
+               String(serverConfig.serverPort) + "/api/device-status";
+
+  http.begin(client, url);
+  http.addHeader("Content-Type", "application/json");
+
+  // Prepare JSON payload
+  DynamicJsonDocument doc(1024);
+  doc["ssid"] = WiFi.SSID();
+  doc["ip"] = WiFi.localIP().toString();
+  doc["rssi"] = WiFi.RSSI();  // Signal strength
+
+  String payload;
+  serializeJson(doc, payload);
+
+  int httpCode = http.POST(payload);
+
+  if (httpCode == 200) {
+    Serial.println("Status update sent successfully");
+  } else {
+    Serial.println("Status update failed with code: " + String(httpCode));
+  }
+
+  http.end();
+}
+
 // Check for new messages from the server
 void checkForNewMessages() {
   if (WiFi.status() != WL_CONNECTED) return;
@@ -271,7 +357,7 @@ void checkForNewMessages() {
   WiFiClient client;
 
   String url = "http://" + String(serverConfig.serverIP) + ":" +
-               String(serverConfig.serverPort) + "/api/current-message";
+               String(serverConfig.serverPort) + "/api/current-message?device=esp8266";
 
   http.begin(client, url);
   int httpCode = http.GET();
@@ -285,10 +371,29 @@ void checkForNewMessages() {
       // Update message if new one available
       if (doc.containsKey("message")) {
         String newMessage = doc["message"].as<String>();
-        if (newMessage != currentMessage) {
-          currentMessage = newMessage;
-          Serial.println("New message received: " + currentMessage);
+
+        // Process emojis before comparing or displaying
+        String processedMessage = replaceEmojis(newMessage);
+
+        if (processedMessage != currentMessage) {
+          currentMessage = processedMessage;
+          P.displayReset();  // Reset the display to show the new message immediately
+          Serial.println("New message received: " + newMessage);
         }
+      }
+
+      // Handle brightness settings if provided
+      if (doc.containsKey("brightness")) {
+        int brightness = doc["brightness"].as<int>();
+        brightness = constrain(brightness, 0, 15);
+        P.setIntensity(brightness);
+      }
+
+      // Handle scroll speed if provided
+      if (doc.containsKey("speed")) {
+        int speed = doc["speed"].as<int>();
+        speed = constrain(speed, 10, 100);
+        P.setSpeed(speed);
       }
 
       // Handle WiFi configuration updates
