@@ -14,6 +14,26 @@ let messageTemplates = [
   "Happy Birthday! 🎂",
 ];
 
+// Device status tracking
+let deviceStatus = {
+  connected: false,
+  lastSeen: null,
+  wifiName: "Unknown",
+  ipAddress: "Unknown",
+  deviceIP: "Unknown",
+};
+
+// Connection timeout interval (in milliseconds)
+const CONNECTION_TIMEOUT = 60000; // 1 minute
+
+// Function to check if device is connected
+function isDeviceConnected() {
+  if (!deviceStatus.lastSeen) return false;
+
+  const timeSinceLastSeen = Date.now() - deviceStatus.lastSeen;
+  return timeSinceLastSeen < CONNECTION_TIMEOUT;
+}
+
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -25,6 +45,32 @@ app.use((req, res, next) => {
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept"
   );
+  next();
+});
+
+// Track device connection for any request from ESP8266
+app.use((req, res, next) => {
+  // Check for requests from ESP8266 (using a user-agent header or a specific path)
+  const isESP8266Request =
+    req.path.startsWith("/api/") &&
+    (req.get("User-Agent")?.includes("ESP8266") ||
+      req.query.device === "esp8266");
+
+  if (isESP8266Request) {
+    deviceStatus.lastSeen = Date.now();
+    deviceStatus.connected = true;
+
+    // Get device IP address from request
+    deviceStatus.deviceIP = req.ip.replace("::ffff:", ""); // Strip IPv6 prefix if present
+
+    // If WiFi SSID is sent in the request, update it
+    if (req.query.ssid) {
+      deviceStatus.wifiName = req.query.ssid;
+    }
+
+    console.log(`ESP8266 device connected from ${deviceStatus.deviceIP}`);
+  }
+
   next();
 });
 
@@ -43,15 +89,37 @@ app.get("/api/current-message", (req, res) => {
   res.json({ message: currentMessage });
 });
 
+// Endpoint for ESP8266 to report its status
+app.post("/api/device-status", (req, res) => {
+  const { ssid, ip } = req.body;
+
+  if (ssid) deviceStatus.wifiName = ssid;
+  if (ip) deviceStatus.deviceIP = ip;
+
+  deviceStatus.lastSeen = Date.now();
+  deviceStatus.connected = true;
+
+  console.log(
+    `Device status updated - SSID: ${deviceStatus.wifiName}, IP: ${deviceStatus.deviceIP}`
+  );
+  res.json({ success: true });
+});
+
 // Get device status
 app.get("/api/status", (req, res) => {
   console.log("GET /api/status");
+
+  // Update connected status based on last seen time
+  deviceStatus.connected = isDeviceConnected();
+
   res.json({
-    connected: true,
-    wifiName: "Your WiFi",
-    ipAddress: "192.168.1.123",
+    connected: deviceStatus.connected,
+    wifiName: deviceStatus.wifiName,
+    ipAddress: deviceStatus.deviceIP,
     currentMessage: currentMessage,
-    lastSeen: new Date().toISOString(),
+    lastSeen: deviceStatus.lastSeen
+      ? new Date(deviceStatus.lastSeen).toISOString()
+      : null,
   });
 });
 
@@ -89,7 +157,7 @@ app.post("/api/templates", (req, res) => {
 // Start the server
 app.listen(port, "0.0.0.0", () => {
   console.log(`Server running at http://0.0.0.0:${port}`);
-  console.log(`Test the API at http://localhost:${port}/api/test`);
+  console.log(`Test the API at http://localhost:${port}/api/status`);
   console.log(`Your computer's IP is likely one of these:`);
 
   // Display potential IP addresses for the ESP8266 to connect to
@@ -101,6 +169,8 @@ app.listen(port, "0.0.0.0", () => {
       // Skip internal and non-IPv4 addresses
       if (net.family === "IPv4" && !net.internal) {
         console.log(`- http://${net.address}:${port}`);
+        // Set server IP for reference
+        deviceStatus.ipAddress = net.address;
       }
     }
   }

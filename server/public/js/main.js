@@ -1,88 +1,44 @@
-// Elements
+// DOM Elements
 const messageForm = document.getElementById("messageForm");
 const messageInput = document.getElementById("messageInput");
-const previewEl = document.getElementById("preview");
-const emojiBtns = document.querySelectorAll(".emoji-btn");
+const preview = document.getElementById("preview");
+const notification = document.getElementById("notification");
+const notificationText = document.getElementById("notificationText");
+const templatesGrid = document.getElementById("templatesGrid");
+const addTemplateBtn = document.getElementById("addTemplateBtn");
 const refreshStatusBtn = document.getElementById("refreshStatusBtn");
+
+// Status elements
 const connectionStatus = document.getElementById("connectionStatus");
 const wifiName = document.getElementById("wifiName");
 const ipAddress = document.getElementById("ipAddress");
 const currentDisplayMessage = document.getElementById("currentDisplayMessage");
 const lastSeen = document.getElementById("lastSeen");
-const templatesGrid = document.getElementById("templatesGrid");
-const addTemplateBtn = document.getElementById("addTemplateBtn");
-const notification = document.getElementById("notification");
-const notificationText = document.getElementById("notificationText");
 
-// Update preview
-function updatePreview() {
-  previewEl.textContent = messageInput.value || "Enter your message";
-}
+// Initialize the page
+document.addEventListener("DOMContentLoaded", () => {
+  loadTemplates();
+  updateDeviceStatus();
 
-// Update status info
-async function updateStatus() {
-  try {
-    const response = await fetch("/api/status");
-    if (response.ok) {
-      const data = await response.json();
+  // Set up polling for device status every 10 seconds
+  setInterval(updateDeviceStatus, 10000);
+});
 
-      // Update connection status
-      connectionStatus.className = data.connected
-        ? "status-value connected"
-        : "status-value disconnected";
-      connectionStatus.innerHTML = data.connected
-        ? '<i class="fas fa-check-circle"></i> Connected'
-        : '<i class="fas fa-times-circle"></i> Disconnected';
+// Preview message as user types
+messageInput.addEventListener("input", () => {
+  preview.textContent = messageInput.value || "Enter your message";
+});
 
-      // Update other status info
-      wifiName.textContent = data.wifiName;
-      ipAddress.textContent = data.ipAddress;
-      currentDisplayMessage.textContent = data.currentMessage;
+// Handle form submission to send message to display
+messageForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
 
-      // Format last seen date
-      const lastSeenDate = new Date(data.lastSeen);
-      const now = new Date();
-      const diffMs = now - lastSeenDate;
-      const diffMins = Math.floor(diffMs / 60000);
-
-      if (diffMins < 1) {
-        lastSeen.textContent = "Just now";
-      } else if (diffMins < 60) {
-        lastSeen.textContent = `${diffMins} minute${
-          diffMins === 1 ? "" : "s"
-        } ago`;
-      } else {
-        const diffHours = Math.floor(diffMins / 60);
-        if (diffHours < 24) {
-          lastSeen.textContent = `${diffHours} hour${
-            diffHours === 1 ? "" : "s"
-          } ago`;
-        } else {
-          lastSeen.textContent = lastSeenDate.toLocaleString();
-        }
-      }
-    }
-  } catch (error) {
-    console.error("Error updating status:", error);
-    connectionStatus.className = "status-value disconnected";
-    connectionStatus.innerHTML = '<i class="fas fa-times-circle"></i> Error';
+  const message = messageInput.value.trim();
+  if (!message) {
+    showNotification("Please enter a message", "error");
+    return;
   }
-}
 
-// Show notification
-function showNotification(message, isError = false) {
-  notification.className = isError
-    ? "notification error show"
-    : "notification show";
-  notificationText.textContent = message;
-
-  setTimeout(() => {
-    notification.className = notification.className.replace("show", "");
-  }, 3000);
-}
-
-// Send message
-async function sendMessage(message) {
   try {
     const response = await fetch("/api/set-message", {
       method: "POST",
@@ -92,34 +48,37 @@ async function sendMessage(message) {
       body: JSON.stringify({ message }),
     });
 
-    if (response.ok) {
-      currentDisplayMessage.textContent = message;
+    const data = await response.json();
+
+    if (data.success) {
       showNotification("Message sent successfully!");
+      updateDeviceStatus(); // Update status to show new message
     } else {
-      const data = await response.json();
-      showNotification(data.error || "Failed to send message", true);
+      showNotification(data.error || "Failed to send message", "error");
     }
   } catch (error) {
     console.error("Error sending message:", error);
-    showNotification("Network error. Please try again.", true);
+    showNotification("Network error, please try again", "error");
   }
-}
+});
 
-// Load templates
-async function loadTemplates() {
-  try {
-    const response = await fetch("/api/templates");
-    if (response.ok) {
-      const templates = await response.json();
-      updateTemplatesGrid(templates);
-    }
-  } catch (error) {
-    console.error("Error loading templates:", error);
+// Handle emoji button clicks
+document.querySelectorAll(".emoji-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const emoji = btn.getAttribute("data-emoji");
+    messageInput.value += emoji;
+    preview.textContent = messageInput.value;
+  });
+});
+
+// Add template button handler
+addTemplateBtn.addEventListener("click", async () => {
+  const template = messageInput.value.trim();
+  if (!template) {
+    showNotification("Please enter a message to save as template", "error");
+    return;
   }
-}
 
-// Add template
-async function addTemplate(template) {
   try {
     const response = await fetch("/api/templates", {
       method: "POST",
@@ -129,87 +88,131 @@ async function addTemplate(template) {
       body: JSON.stringify({ template }),
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      updateTemplatesGrid(data.templates);
-      showNotification("Template added successfully!");
+    const data = await response.json();
+
+    if (data.success) {
+      showNotification("Template saved!");
+      loadTemplates();
     } else {
-      const data = await response.json();
-      showNotification(data.error || "Failed to add template", true);
+      showNotification(data.error || "Failed to save template", "error");
     }
   } catch (error) {
-    console.error("Error adding template:", error);
-    showNotification("Network error. Please try again.", true);
+    console.error("Error saving template:", error);
+    showNotification("Network error, please try again", "error");
   }
-}
+});
 
-// Update templates grid
-function updateTemplatesGrid(templates) {
-  templatesGrid.innerHTML = templates
-    .map(
-      (template) => `
-    <div class="template-item" data-template="${template}">
-      <div class="template-text">${template}</div>
-    </div>
-  `
-    )
-    .join("");
+// Refresh status button handler
+refreshStatusBtn.addEventListener("click", () => {
+  refreshStatusBtn.disabled = true;
+  refreshStatusBtn.innerHTML =
+    '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
 
-  // Re-attach event listeners
-  document.querySelectorAll(".template-item").forEach((item) => {
-    item.addEventListener("click", () => {
-      messageInput.value = item.dataset.template;
-      updatePreview();
-    });
+  updateDeviceStatus().finally(() => {
+    setTimeout(() => {
+      refreshStatusBtn.disabled = false;
+      refreshStatusBtn.innerHTML =
+        '<i class="fas fa-sync-alt"></i> Refresh Status';
+    }, 1000);
   });
-}
+});
 
-// Load initial message
-async function loadCurrentMessage() {
+// Load message templates
+async function loadTemplates() {
   try {
-    const response = await fetch("/api/current-message");
-    if (response.ok) {
-      const data = await response.json();
-      messageInput.value = data.message;
-      updatePreview();
-    }
+    const response = await fetch("/api/templates");
+    const templates = await response.json();
+
+    templatesGrid.innerHTML = "";
+
+    templates.forEach((template) => {
+      const templateElement = document.createElement("div");
+      templateElement.className = "template-item";
+      templateElement.textContent = template;
+      templateElement.addEventListener("click", () => {
+        messageInput.value = template;
+        preview.textContent = template;
+      });
+
+      templatesGrid.appendChild(templateElement);
+    });
   } catch (error) {
-    console.error("Error loading current message:", error);
+    console.error("Error loading templates:", error);
+    showNotification("Failed to load templates", "error");
   }
 }
 
-// Event Listeners
-messageInput.addEventListener("input", updatePreview);
+// Update device status
+async function updateDeviceStatus() {
+  try {
+    const response = await fetch("/api/status");
+    const status = await response.json();
 
-messageForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const message = messageInput.value.trim();
-  if (message) {
-    sendMessage(message);
+    // Update connection status
+    if (status.connected) {
+      connectionStatus.className = "status-value connected";
+      connectionStatus.innerHTML =
+        '<i class="fas fa-check-circle"></i> Connected';
+    } else {
+      connectionStatus.className = "status-value disconnected";
+      connectionStatus.innerHTML =
+        '<i class="fas fa-times-circle"></i> Disconnected';
+    }
+
+    // Update WiFi name
+    wifiName.textContent = status.wifiName || "Unknown";
+
+    // Update IP address
+    ipAddress.textContent = status.ipAddress || "Unknown";
+
+    // Update current message
+    currentDisplayMessage.textContent = status.currentMessage || "None";
+
+    // Update last seen time
+    if (status.lastSeen) {
+      const lastSeenDate = new Date(status.lastSeen);
+      const now = new Date();
+      const diffMs = now - lastSeenDate;
+      const diffSecs = Math.floor(diffMs / 1000);
+
+      if (diffSecs < 60) {
+        lastSeen.textContent = `${diffSecs} seconds ago`;
+      } else if (diffSecs < 3600) {
+        const mins = Math.floor(diffSecs / 60);
+        lastSeen.textContent = `${mins} minute${mins !== 1 ? "s" : ""} ago`;
+      } else {
+        lastSeen.textContent = lastSeenDate.toLocaleTimeString();
+      }
+    } else {
+      lastSeen.textContent = "Never";
+    }
+
+    return status;
+  } catch (error) {
+    console.error("Error updating device status:", error);
+    // Show offline status on error
+    connectionStatus.className = "status-value disconnected";
+    connectionStatus.innerHTML =
+      '<i class="fas fa-times-circle"></i> Server Error';
+    return null;
   }
-});
+}
 
-emojiBtns.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    messageInput.value += btn.dataset.emoji;
-    updatePreview();
-  });
-});
+// Show notification
+function showNotification(message, type = "success") {
+  notificationText.textContent = message;
+  notification.className = `notification ${type}`;
+  notification.style.display = "flex";
 
-refreshStatusBtn.addEventListener("click", updateStatus);
+  setTimeout(() => {
+    notification.style.opacity = "1";
+  }, 10);
 
-addTemplateBtn.addEventListener("click", () => {
-  const message = messageInput.value.trim();
-  if (message) {
-    addTemplate(message);
-  }
-});
+  setTimeout(() => {
+    notification.style.opacity = "0";
 
-// Initialize
-updatePreview();
-loadCurrentMessage();
-loadTemplates();
-updateStatus();
-
-// Periodically update status
-setInterval(updateStatus, 30000); // Update every 30 seconds
+    setTimeout(() => {
+      notification.style.display = "none";
+    }, 300);
+  }, 3000);
+}
