@@ -18,8 +18,8 @@ BossOfBlinks is an open-source project that allows you to control an LED matrix 
 
 ## 🖼️ Screenshots
 
-<!-- TODO: add web screenshot -->
-<!-- ![Web Interface](docs/images/web-interface.png) -->
+![Web Interface](docs/images/screen-1.png)
+![Web Interface](docs/images/screen-2.png)
 
 ![LED Display](docs/images/led-display.jpg)
 
